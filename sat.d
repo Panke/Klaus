@@ -250,51 +250,61 @@ class Solver
         // variables are picked in order (for now) and true is tried first
         while(true)
         {
-           bool satAble = unitPropagation();
-           if(!satAble)
-           {
-                debug(search) writeln("backtrack");
-                bool done = false;
-                while(!done)
-                {
-                    // backtrack at highest level = UNSAT
-                    if(decisions.length == 0)
-                        return false;
-                    // roll back implications
-                    size_t curDLevel = decisions.length;
-                    Literal lastAssump = decisions.back;
-                    decisions.popBack;
-                    while(!trail.empty && trail.back.dlevel == curDLevel)
-                    {
-                        assigns[trail.back.var] = Value.Undef;
-                        trail.popBack();
-                    }
-                    // change the decision stack
-                    // if we tried true last, assume false and continue
-                    if(lastAssump.sign == Sign.Pos)
-                    {
-                        done = true;
-                        decide(~lastAssump);
-                    }
-                }
-                continue;
+            auto propResult = unitPropagation();
+            if(propResult.conflict)
+            {
+                debug(search) writeln("not satable");
+                size_t backtrackTo = analyseConflict(propResult.conflictClause);
+                debug(search) writeln("backtrack to %s", backtrackTo);
+
+                if(!backtrack(backtrackTo))
+                    return false;
             }
+            else // no conflict
+            {
+                // all variables assigned AND no conflict ==> solution found
+                debug(search) writefln("trail:\n %s", trailToString());
+                if(trail.length == varCount)
+                    return true;
 
-           // no conflict
-//             assert(!conflicts);
+                // choose next variable to assign.
+                // if the top element is assumend to be true, assume it should
+                // be false
+                Literal assumption = chooseLit();
+                decide(assumption);
+            }
+        }
+    }
 
-//          all variables assigned AND no conflict ==> solution found
-           debug(search) writefln("trail:\n %s", trailToString());
-           if(trail.length == varCount)
-              return true;
 
-           // choose next variable to assign.
-           // if the top element is assumend to be true, assume it should
-           // be false
-           Literal assumption = chooseLit();
-           decide(assumption);
-       }
-        assert(0);
+    bool backtrack(size_t toLevel)
+    {
+
+        // backtrack up to a point where we can flip a variable
+        while(toLevel > 0 && decisions[toLevel-1].sign == Sign.Neg)
+            toLevel--;
+
+        if(toLevel == 0)
+            return false; // can not backtrack any further
+
+        decisions.length = toLevel;
+        while(!trail.empty && trail.back.dlevel >= toLevel)
+        {
+            assigns[trail.back.var] = Value.Undef;
+            trail.popBack();
+        }
+        // change the decision stack
+        // if we tried true last, assume false and continue
+		Literal lastAssump = decisions.back;
+		decisions.popBack();
+        assert(lastAssump.sign == Sign.Pos);
+        decide(~lastAssump);
+        return true;
+    }
+
+    size_t analyseConflict(Clause* clause)
+    {
+        return curDeLevel;
     }
 
     Literal chooseLit()
@@ -358,11 +368,16 @@ class Solver
 
         return false if an conflict was found.
     */
-    bool unitPropagation()
+    alias Tuple!(bool, "conflict", Clause*, "conflictClause") UProp;
+    UProp unitPropagation()
     in
     {
         foreach(Clause* cl; clauses)
             assert(cl.literals.length >= 2);
+    }
+    out(result)
+    {
+        assert(!result.conflict || result.conflictClause !is null);
     }
     body
     {
@@ -374,7 +389,7 @@ class Solver
             assert(value(lit) == Value.False);
             // iterate over all clauses, that watch lit
             Clause*[] watchingClauses = watchers[lit];
-            debug(no) writefln("%s is watched by %s clauses:\n %s",
+            debug(uprop) writefln("%s is watched by %s clauses:\n %s",
                                       lit,
                                       watchingClauses.length,
                                       map!"a.literals"(watchingClauses));
@@ -419,11 +434,11 @@ class Solver
                 else
                 {
                     propQ.length = 0;
-                    return false;
+                    return UProp(true, cl);
                 }
             }
         }
-        return true;
+        return UProp(false, null);
     }
 
     Value value(Literal lit)

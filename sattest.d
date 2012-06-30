@@ -59,14 +59,14 @@ unittest
     {
         Solver solv = conf1();
         solv.decide(Literal(Var(0), Sign.Pos));
-        assert(! solv.unitPropagation());
+        assert(solv.unitPropagation().conflict);
     });
 
     testCase("unit propagation, no conflict & solution",
     {
         Solver solv = conf1();
         solv.decide(Literal(Var(1), Sign.Neg));
-        assert(solv.unitPropagation());
+		assert(!solv.unitPropagation().conflict);
         auto model = solv.model;
         foreach(val; model)
             assEq(val, Value.False);
@@ -77,7 +77,7 @@ unittest
     {
         Solver solv = conf2();
         solv.decide(Literal(Var(0), Sign.Pos));
-        assert(solv.unitPropagation());
+        assert(!solv.unitPropagation().conflict);
     });
 }
 

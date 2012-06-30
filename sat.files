@@ -1,0 +1,5 @@
+lupe.d
+sat.d
+sattest.d
+testutils.d
+Makefile
