@@ -6,9 +6,11 @@ import testutils;
 
 import sat;
 
+version(unittest) {
 static this()
 {
     registerTestRunner();
+}
 }
 Solver conf1()
 {

@@ -113,19 +113,7 @@ unittest
     ~Undef = Undef
 */
 enum Value : byte { Undef = 0, False = -1, True = 1}
-Value opUnary(string op)(Value operand) if(op == "~")
-out(result)
-{
-    with(Value) assert(result == Undef ||
-                       result == False ||
-                       result == True);
-}
-body
-{
-    return cast(Value)(operand * -1);
-}
 
-// workaround for a bug?
 Value neg(Value op) pure nothrow
 {
     return cast(Value)(op * -1);
@@ -134,11 +122,9 @@ Value neg(Value op) pure nothrow
 
 unittest
 {
-    assert(Value.Undef.opUnary!("~")() == Value.Undef);
     assert(neg(Value.Undef) == Value.Undef);
     assert(neg(Value.True) == Value.False);
     assert(neg(Value.False) == Value.True);
-    static assert(is(typeof(~Value.False) == Value));
     assert(neg(Value.Undef) == Value.Undef);
 }
 
@@ -147,6 +133,8 @@ class Solver
 {
 // TODO Report bug, that __returnLabel is
     // undefined if invariant is used
+
+    @property curDeLevel() { return decisions.length; }
 
 
     /**
@@ -196,12 +184,14 @@ class Solver
         assert(checkWatchers());
         foreach(val;assigns) { assert(val == Value.Undef); }
         assert(assigns.length == varCount);
+        assert(deLevels.length == varCount);
     }
     body
     {
         // datastructures which size is bounded by the number of variables
         // reserve space for there maximum size to avoid allocations
         assigns.length = varCount;
+        deLevels.length = varCount;
         initWatchers();
     }
 
@@ -334,9 +324,11 @@ class Solver
         // check that the assumptions contradicts no previous knowledge
         if(assigns[lit.var] != Value.Undef)
         {
-            assert((assigns[lit.var] == toSet));
-            debug(assume) writeln("assuming already assigned var");
-            return true;
+            if(assigns[lit.var] != toSet)
+            {
+                debug(assume) writeln("conflicting assignment");
+                return false;
+            }
         }
 
         // change assignment
@@ -345,7 +337,8 @@ class Solver
         propQ ~= lit;
 
         // add to trail
-        trail ~= (TrailElem(lit.var, decisions.length));
+        trail ~= (TrailElem(lit.var, curDeLevel));
+        deLevels[lit.var] = curDeLevel;
         return true;
     }
 
@@ -474,6 +467,7 @@ class Solver
     Literal[] propQ;
     alias Tuple!(Var, "var", size_t, "dlevel") TrailElem;
     TrailElem[] trail;
+    size_t[] deLevels;
     Watchers watchers;
 //
 
