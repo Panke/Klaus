@@ -25,7 +25,7 @@ bool assNeq(T, Q)(T t, Q q, string file = __FILE__, size_t line = __LINE__)
     if(t != q)
         return true;
     return false;
-    /+
+
     static if(__traits(compiles, to!string(t)))
         string tstr = to!string(t);
     else
@@ -38,7 +38,7 @@ bool assNeq(T, Q)(T t, Q q, string file = __FILE__, size_t line = __LINE__)
 
 
     string msg = format("assNeq fails: [%s] == [%s]", tstr, qstr);
-    throw new AssertException(msg, file, line); +/
+    throw new AssertException(msg, file, line);
 }
 
 bool assEq(T, Q)(T t, Q q, string file = __FILE__, size_t line = __LINE__)
