@@ -191,7 +191,9 @@ class Solver
         // datastructures which size is bounded by the number of variables
         // reserve space for there maximum size to avoid allocations
         assigns.length = varCount;
+        reasons.length = varCount;
         deLevels.length = varCount;
+        deLevels[] = -1;
         initWatchers();
     }
 
@@ -290,13 +292,16 @@ class Solver
         decisions.length = toLevel;
         while(!trail.empty && trail.back.dlevel >= toLevel)
         {
-            assigns[trail.back.var] = Value.Undef;
+            Var v = trail.back.var;
+            assigns[v] = Value.Undef;
+            reasons[v] = null;
+            deLevels[v] = -1;
             trail.popBack();
         }
         // change the decision stack
         // if we tried true last, assume false and continue
-		Literal lastAssump = decisions.back;
-		decisions.popBack();
+        Literal lastAssump = decisions.back;
+        decisions.popBack();
         assert(lastAssump.sign == Sign.Pos);
         decide(~lastAssump);
         return true;
@@ -480,6 +485,7 @@ class Solver
     Literal[] assumptions;
 
     Literal[] propQ;
+    Clause*[] reasons;
     alias Tuple!(Var, "var", size_t, "dlevel") TrailElem;
     TrailElem[] trail;
     size_t[] deLevels;
