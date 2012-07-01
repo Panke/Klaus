@@ -383,6 +383,7 @@ class Solver
     out(result)
     {
         assert(!result.conflict || result.conflictClause !is null);
+        assert(propQ.empty);
     }
     body
     {
