@@ -175,6 +175,41 @@ EOF";
         assEq(solv.model, [Value.True, Value.True, Value.True]);
     });
 
+    testCase("full run, unsat",
+    {
+        Solver solv = new Solver;
+        string dimacs = q"EOF
+            p cnf 4 8
+            1 2 0
+            -1 -2 0
+            -1 2 0
+            1 -2 0
+            3 4 0
+            -3 -4 0
+            -3 4 0
+            3 -4 0
+EOF";
+        solv.parse(dimacs);
+        assert(!solv.solve());
+    });
+
+
+    testCase("full run, unsat",
+    {
+        Solver solv = new Solver;
+        string dimacs = q"EOF
+        p cnf 4 6
+        1 2 0
+        1 -2 0
+        3 4 0
+        -3 -4 0
+        -3 4 0
+        3 -4 0
+EOF";
+        solv.parse(dimacs);
+        assert(!solv.solve());
+    });
+
     testCase("full run, sat",
     {
         Solver solv = new Solver;
