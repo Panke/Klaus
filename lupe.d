@@ -73,7 +73,7 @@ class TestRunner
                 app.put("Reason:\n");
                 app.put(e.msg);
                 app.put(format("\tOn line %s in file %s", e.line, e.file));
-                debug app.put(e.info.toString());
+//                debug app.put(e.info.toString());
                 writeln(app.data);
                 tests[i].state = State.Failure;
                 failcount ++;

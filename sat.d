@@ -14,6 +14,7 @@ import std.typecons;
 import std.c.stdlib;
 import std.array;
 
+import sattest;
 
 struct Sign
 {
@@ -52,6 +53,17 @@ struct Var
     size_t idx;
     alias idx this;
 }
+
+size_t index(Literal lit) pure nothrow
+out(result)
+{
+    assert((result - 2*lit.var) <= 1);
+}
+body
+{
+    return 2*lit.var + lit.sign;
+}
+
 // Literals store the index for the variable and the sign
 struct Literal
 {
@@ -255,17 +267,21 @@ class Solver
             auto propResult = unitPropagation();
             if(propResult.conflict)
             {
-                debug(search) writeln("not satable");
-                size_t backtrackTo = analyseConflict(propResult.conflictClause);
-                debug(search) writeln("backtrack to %s", backtrackTo);
-
-                if(!backtrack(backtrackTo))
+                if(curDeLevel == 0)
+                {
+                    debug(search) writeln("not satable");
                     return false;
+                }
+                auto aconf = analyseConflict(propResult.conflictClause);
+                debug(search) writefln("backtrack to %s", aconf.blevel);
+                backtrack(aconf.blevel);
+                Clause* cls = learn(aconf.learned);
+                assume(aconf.asserting, cls);
             }
             else // no conflict
             {
                 // all variables assigned AND no conflict ==> solution found
-                debug(search) writefln("trail:\n %s", trailToString());
+//                debug(search) writefln("trail:\n %s", trailToString());
                 if(trail.length == varCount)
                     return true;
 
@@ -278,19 +294,19 @@ class Solver
         }
     }
 
-
-    bool backtrack(size_t toLevel)
+	/*
+		redo all desicions up to but not including toLevel
+	*/
+	void backtrack(size_t toLevel)
+	in
+	{
+		assert(toLevel >= 0);
+	}
+	body
     {
 
-        // backtrack up to a point where we can flip a variable
-        while(toLevel > 0 && decisions[toLevel-1].sign == Sign.Neg)
-            toLevel--;
-
-        if(toLevel == 0)
-            return false; // can not backtrack any further
-
         decisions.length = toLevel;
-        while(!trail.empty && trail.back.dlevel >= toLevel)
+        while(!trail.empty && trail.back.dlevel > toLevel)
         {
             Var v = trail.back.lit.var;
             assigns[v] = Value.Undef;
@@ -298,16 +314,10 @@ class Solver
             deLevels[v] = -1;
             trail.popBack();
         }
-        // change the decision stack
-        // if we tried true last, assume false and continue
-        Literal lastAssump = decisions.back;
-        decisions.popBack();
-        assert(lastAssump.sign == Sign.Pos);
-        decide(~lastAssump);
-        return true;
     }
 
-    size_t analyseConflict(Clause* clause)
+    alias Tuple!(size_t, "blevel", Literal[], "learned", Literal, "asserting") AConf;
+    AConf analyseConflict(Clause* clause)
     in
     {
         assert(clause !is null);
@@ -315,34 +325,79 @@ class Solver
     }
     body
     {
-        bool[] seen = new bool[varCount];
-        seen[] = false;
 
         Literal[] lits = clause.literals.dup;
         debug(analyse) writefln("Conflicting Clause is %s", lits);
 
-        /+// we can use the trail for breadth first search
+        // we can use the trail for breadth first search
+        size_t idx = trail.length - 1;
         while(true)
         {
             // count number of literals from current d-level
             auto pred = (Literal a) => deLevels[a.var] == curDeLevel;
             auto numOfCurDeLevel = count!pred(lits);
             if(numOfCurDeLevel == 1)
+            {
+                debug(analyse) writeln("UIP");
                 break;
+            }
 
-            auto curElem = trail.back;
-            trail.popBack;
+            auto curElem = trail[idx];
+            idx--;
+            if(!canFind(lits, curElem.lit) && !canFind(lits, ~curElem.lit))
+                continue;
             assert(curElem.dlevel == curDeLevel);
-
-            Clause* reason = reasons[curElem.var];
-
-
-
-
+            Clause* reason = reasons[curElem.lit.var];
+            if(reason is null)
+            {
+                debug(analyse) writeln("reason null");
+                break;
+            }
+            // decision variable reached. If this happend we should usually
+            // have had a UIP already ?
+            debug(analyse) writefln("resolving using %s", curElem.lit);
+            lits = resolve(reason.literals, lits, curElem.lit);
         }
-        +/
 
-        return curDeLevel;
+		debug(analyse) writefln("Learned Clause at dlevel %s is %s", curDeLevel, lits);
+		debug(analyse) writeln(map!(a => deLevels[a.var])(lits).array());
+		size_t blevel = 0;
+		Literal asserting;
+		foreach(lit; lits)
+		{
+			if(deLevels[lit.var] > blevel && deLevels[lit.var] != curDeLevel)
+				blevel = deLevels[lit.var];
+			if(deLevels[lit.var] == curDeLevel)
+				asserting = lit;
+		}
+		return AConf(blevel, lits, asserting);
+    }
+
+    Literal[] resolve(Literal[] pos, Literal[] neg, Literal resolvent)
+    {
+        bool[] seen = new bool[varCount * 2];
+        seen[] = false;
+
+        Literal[] result;
+        foreach(lit; pos)
+        {
+            if(lit != resolvent && !seen[lit.index])
+            {
+                seen[lit.index] = true;
+                result ~= lit;
+            }
+        }
+        foreach(lit; neg)
+        {
+            if(lit != ~resolvent && !seen[lit.index])
+            {
+                seen[lit.index] = true;
+                result ~= lit;
+            }
+        }
+        debug(resolve) writefln("resolve %s and\n%s to \n %s", pos, neg, result);
+        return result;
+
     }
 
     Literal chooseLit()
@@ -357,15 +412,15 @@ class Solver
 
     bool decide(Literal lit)
     {
-        debug(decide) writefln("decide: %s", lit);
         decisions ~= lit;
+        debug(decide) writefln("decide: %s at %s", lit, decisions.length);
         return assume(lit);
     }
 
     /**
         assume that a specific literal is true
     */
-    bool assume(Literal lit)
+    bool assume(Literal lit, Clause* reason = null)
     {
         Value toSet = lit.sign == Sign.Pos ? Value.True: Value.False;
         debug(assume) writefln("assuming: %s = %s", lit.var, toSet);
@@ -377,13 +432,15 @@ class Solver
                 debug(assume) writeln("conflicting assignment");
                 return false;
             }
+            else
+                return true;
         }
 
         // change assignment
         assigns[lit.var] = toSet;
         // enqueue for propagation
         propQ ~= lit;
-
+        reasons[lit.var] = reason;
         // add to trail
         trail ~= (TrailElem(lit, curDeLevel));
         deLevels[lit.var] = curDeLevel;
@@ -462,7 +519,7 @@ class Solver
                 // if undefIdx == 1 -> no true and no other undef --> lits[1] can be assumed
                 else if(undefIdx == 1)
                 {
-                    if(!assume(lits[1]))
+                    if(!assume(lits[1], cl))
                     {
                         propQ.length = 0;
                         return UProp(true, cl);
@@ -515,6 +572,26 @@ class Solver
         if(assumptions.canFind(lit))
             return;
         assumptions ~= lit;
+    }
+
+    Clause* learn(Literal[] lits)
+    in
+    {
+        assert(lits.length > 0);
+    }
+    body
+    {
+        if(lits.length == 1)
+            return null; // todo
+
+        debug(learn) write("learning ", lits, " ", clauses.length, "\n");
+        Clause* cls = new Clause;
+        cls.literals = lits;
+
+        clauses ~= cls;
+        watchers.watch(lits[0], cls);
+        watchers.watch(lits[1], cls);
+        return cls;
     }
 
 //private:
@@ -616,15 +693,6 @@ struct Watchers
         return _watchlist[index(lit)];
     }
 
-    size_t index(Literal lit) pure nothrow
-    out(result)
-    {
-        assert((result - 2*lit.var) <= 1);
-    }
-    body
-    {
-        return 2*lit.var + lit.sign;
-    }
 
     void watch(Literal lit, Clause* cls)
     in
@@ -675,7 +743,7 @@ unittest
     watchers.watch(lit, cls);
     assert(watchers[lit].length >= 1);
     assert(watchers[lit][0] == cast(Clause*) 144);
-    watchers._watchlist[watchers.index(lit)] = [ cast(Clause*) 32, cast(Clause*) 64, cast(Clause*) 128 ];
+    watchers._watchlist[index(lit)] = [ cast(Clause*) 32, cast(Clause*) 64, cast(Clause*) 128 ];
     assert(watchers[lit].length == 3);
     assert(watchers[lit][0] ==  cast(Clause*) 32);
 
@@ -812,18 +880,15 @@ EOF";
 
 void main(string[] args)
 {
-/+    Solver solver = new Solver();
-    if(args.length > 1)
-    {
-        string content = readText(args[1]);
+/*    Solver solver = new Solver();
+        string content = notSat;
         solver.parse(content);
         bool suc = solver.solve();
         if(suc)
             writeln(solver.model);
         else
             writeln("unsat");
-    }
-+/
+*/
 }
 
 
