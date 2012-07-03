@@ -240,6 +240,24 @@ EOF";
         assert(!solv.solve());
     });
 
+    testCase("full run, example from handbook of satisfiability (1)",
+    {
+        string dimacs = q"EOF
+        p cnf 6 7
+        1 2 0
+        2 3 0
+        -1 -4 5 0
+        -1 4 6 0
+        -1 -5 6 0
+        -1 4 -6 0
+        -1 -5 -6 0
+EOF";
+        Solver solv = new Solver;
+        solv.parse(dimacs);
+        assert(solv.solve());
+    });
+
+
 }
 string zebra = q"EOF
 c The zebra problem.
