@@ -878,17 +878,5 @@ EOF";
 }
 
 
-void main(string[] args)
-{
-/*    Solver solver = new Solver();
-        string content = notSat;
-        solver.parse(content);
-        bool suc = solver.solve();
-        if(suc)
-            writeln(solver.model);
-        else
-            writeln("unsat");
-*/
-}
 
 

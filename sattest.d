@@ -1,17 +1,10 @@
 import std.stdio;
 import std.algorithm;
 
-import lupe;
-import testutils;
+import probat.all;
 
 import sat;
 
-version(unittest) {
-static this()
-{
-    registerTestRunner();
-}
-}
 Solver conf1()
 {
         Solver solv = new Solver();
