@@ -292,7 +292,7 @@ class Solver
         decisions.length = toLevel;
         while(!trail.empty && trail.back.dlevel >= toLevel)
         {
-            Var v = trail.back.var;
+            Var v = trail.back.lit.var;
             assigns[v] = Value.Undef;
             reasons[v] = null;
             deLevels[v] = -1;
@@ -308,7 +308,40 @@ class Solver
     }
 
     size_t analyseConflict(Clause* clause)
+    in
     {
+        assert(clause !is null);
+        assert(count!(a => deLevels[a.var] == curDeLevel)(clause.literals) > 0);
+    }
+    body
+    {
+        bool[] seen = new bool[varCount];
+        seen[] = false;
+
+        Literal[] lits = clause.literals.dup;
+        debug(analyse) writefln("Conflicting Clause is %s", lits);
+
+        /+// we can use the trail for breadth first search
+        while(true)
+        {
+            // count number of literals from current d-level
+            auto pred = (Literal a) => deLevels[a.var] == curDeLevel;
+            auto numOfCurDeLevel = count!pred(lits);
+            if(numOfCurDeLevel == 1)
+                break;
+
+            auto curElem = trail.back;
+            trail.popBack;
+            assert(curElem.dlevel == curDeLevel);
+
+            Clause* reason = reasons[curElem.var];
+
+
+
+
+        }
+        +/
+
         return curDeLevel;
     }
 
@@ -324,7 +357,7 @@ class Solver
 
     bool decide(Literal lit)
     {
-        debug(search) writefln("decide: %s", lit);
+        debug(decide) writefln("decide: %s", lit);
         decisions ~= lit;
         return assume(lit);
     }
@@ -352,7 +385,7 @@ class Solver
         propQ ~= lit;
 
         // add to trail
-        trail ~= (TrailElem(lit.var, curDeLevel));
+        trail ~= (TrailElem(lit, curDeLevel));
         deLevels[lit.var] = curDeLevel;
         return true;
     }
@@ -428,7 +461,13 @@ class Solver
                     continue;
                 // if undefIdx == 1 -> no true and no other undef --> lits[1] can be assumed
                 else if(undefIdx == 1)
-                    assume(lits[1]);
+                {
+                    if(!assume(lits[1]))
+                    {
+                        propQ.length = 0;
+                        return UProp(true, cl);
+                    }
+                }
                 // some undef found (other than lits[1]), watch this literal
                 else if(undefIdx > 1)
                 {
@@ -487,7 +526,7 @@ class Solver
 
     Literal[] propQ;
     Clause*[] reasons;
-    alias Tuple!(Var, "var", size_t, "dlevel") TrailElem;
+    alias Tuple!(Literal, "lit", size_t, "dlevel") TrailElem;
     TrailElem[] trail;
     size_t[] deLevels;
     Watchers watchers;
@@ -505,7 +544,7 @@ class Solver
                 curLvl = cast(int) elem.dlevel;
                 formattedWrite(app, "%s: ", curLvl);
             }
-            formattedWrite(app, "%s;  ", elem.var);
+            formattedWrite(app, "%s;  ", elem.lit);
         }
         app.put("\n");
         return app.data;
