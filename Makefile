@@ -1,12 +1,13 @@
 
 PROBAT = /home/tobias/projects/
 PROBATOBJ = $(PROBAT)probat/*.d
-commonobj = sat.d sattest.d 
+jflags = -J.
+commonobj = sat.d sattest.d testinstances.d
 common = $(commonobj) $(PROBATOBJ)
 main = main.d
 testmain = testmain.d
 DC = dmdgit
-commonflags = -w -I$(PROBAT)
+commonflags = -w -I$(PROBAT) $(jflags)
 
 dev: $(common) $(testmain) 
 	dmdgit  $(commonflags) -ofdev -debug -unittest -g  $(FLAGS) $(common) $(testmain)  

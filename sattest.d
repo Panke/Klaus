@@ -226,7 +226,7 @@ EOF";
     });
 
 
-    version(longtest) testCase("not sat example",
+    testCase("not sat example",
     {
         Solver solv = new Solver;
         solv.parse(notSat);

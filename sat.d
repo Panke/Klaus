@@ -816,7 +816,8 @@ body
         {
             if(lit == "0")
             {
-                enforce(curClause.length >= 1, "empty clause");
+                if(curClause.length ==0)
+                    goto done;
                 solver.addClause(curClause);
                 curClause = [];
                 clausesSeen++;
@@ -838,6 +839,7 @@ body
         }
 
     }
+done:
     if(numClause != clausesSeen)
         throw new Exception("can't parse this shit (not enough clauses)");
 }
