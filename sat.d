@@ -594,6 +594,30 @@ class Solver
         return cls;
     }
 
+    bool verify(Value[] solution)
+    in
+    {
+        foreach(val; solution)
+        {
+            assert(val != Value.Undef);
+        }
+    }
+    body
+    {
+        if(solution.length != varCount)
+            throw new Exception("incompatible solution");
+
+        assigns = solution;
+        foreach(cl; clauses)
+        {
+            Literal[] lits = cl.literals;
+            bool clauseSat = reduce!"a || b"(map!(a => (value(a) == Value.True))(lits));
+            if(!clauseSat)
+                return false;
+        }
+        return true;
+    }
+
 //private:
     size_t varCount;
     Value[] assigns;

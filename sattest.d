@@ -135,7 +135,12 @@ EOF";
 }
 
 // full runs
-
+bool verify(string dimacs, Value[] model)
+{
+    Solver solv = new Solver;
+    solv.parse(dimacs);
+    return solv.verify(model);
+}
 unittest
 {
     testCase("full run, success, all false",
@@ -151,6 +156,7 @@ EOF";
         solv.parse(dimacs);
         assert(solv.solve());
         assEq(solv.model, [Value.False, Value.False, Value.False]);
+        assert(verify(dimacs, solv.model));
     });
 
     testCase("full run, success, all true",
@@ -166,6 +172,7 @@ EOF";
         solv.parse(dimacs);
         assert(solv.solve());
         assEq(solv.model, [Value.True, Value.True, Value.True]);
+        assert(verify(dimacs, solv.model));
     });
 
     testCase("full run, unsat",
@@ -215,6 +222,7 @@ EOF";
 EOF";
         solv.parse(sat);
         assert(solv.solve());
+        assert(verify(sat, solv.model));
     });
 
 
@@ -223,6 +231,7 @@ EOF";
         Solver solv = new Solver;
         solv.parse(zebra);
         assert(solv.solve());
+        assert(verify(zebra, solv.model));
     });
 
 
@@ -248,6 +257,7 @@ EOF";
         Solver solv = new Solver;
         solv.parse(dimacs);
         assert(solv.solve());
+        assert(verify(dimacs, solv.model));
     });
 
 
