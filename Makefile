@@ -9,10 +9,16 @@ testmain = testmain.d
 DC = dmdgit
 commonflags = -w -I$(PROBAT) $(jflags)
 
-dev: $(common) $(testmain) 
+testfiles = sat.inst unsat.inst
+
+$(testfiles):
+	find instances/unsat -iname "*cnf" > unsat.inst
+	find instances/sat -iname "*cnf" > sat.inst
+
+dev: $(common) $(testmain) $(testfiles) 
 	dmdgit  $(commonflags) -ofdev -debug -unittest -g  $(FLAGS) $(common) $(testmain)  
 
-debug: $(common) $(testmain)
+debug: $(common) $(testmain) $(testfiles)
 	dmdgit  -ofdebug -release -g $(commonflags) $(FLAGS) $(common) $(testmain) 
 
 release: $(common) $(main)
