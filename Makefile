@@ -12,7 +12,7 @@ commonflags = -w -I$(PROBAT) $(jflags)
 testfiles = sat.inst unsat.inst
 
 $(testfiles):
-	find instances/unsat -iname "*cnf" > unsat.inst
+	find  instances/unsat -maxdepth 2 -iname "*cnf" > unsat.inst
 	find instances/sat -iname "*cnf" > sat.inst
 
 dev: $(common) $(testmain) $(testfiles) 

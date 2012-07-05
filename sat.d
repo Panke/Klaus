@@ -294,15 +294,15 @@ class Solver
         }
     }
 
-	/*
-		redo all desicions up to but not including toLevel
-	*/
-	void backtrack(size_t toLevel)
-	in
-	{
-		assert(toLevel >= 0);
-	}
-	body
+    /*
+     *do all desicions up to but not including toLevel
+     */
+    void backtrack(size_t toLevel)
+    in
+    {
+        assert(toLevel >= 0);
+    }
+    body
     {
 
         decisions.length = toLevel;
