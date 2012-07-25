@@ -450,7 +450,7 @@ class Solver
     @property
     Value[] model()
     {
-        return array(assigns);
+        return array(assigns).dup;
     }
 
     /**
