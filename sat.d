@@ -857,7 +857,7 @@ body
 
             int num = to!int(lit);
             enforce(num <= numVar, "variable number too high");
-            enforce(num > 0, "variable number zero or below");
+//            enforce(num > 0, "variable number zero or below");
             Var var = vars[num-1];
             curClause ~= Literal(var, sign);
         }
