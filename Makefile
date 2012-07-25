@@ -6,7 +6,7 @@ commonobj = sat.d sattest.d testinstances.d
 common = $(commonobj) $(PROBATOBJ)
 main = main.d
 testmain = testmain.d
-DC = dmdgit
+DC ?= dmd
 commonflags = -w -I$(PROBAT) $(jflags)
 
 testfiles = sat.inst unsat.inst
@@ -16,10 +16,10 @@ $(testfiles):
 	find instances/sat -iname "*cnf" > sat.inst
 
 dev: $(common) $(testmain) $(testfiles) 
-	dmdgit  $(commonflags) -ofdev -debug -unittest -g  $(FLAGS) $(common) $(testmain)  
+	${DC} $(commonflags) -ofdev -debug -unittest -g  $(FLAGS) $(common) $(testmain)  
 
 debug: $(common) $(testmain) $(testfiles)
-	dmdgit  -ofdebug -release -g $(commonflags) $(FLAGS) $(common) $(testmain) 
+	${DC} -ofdebug -release -g $(commonflags) $(FLAGS) $(common) $(testmain) 
 
 release: $(common) $(main)
-	dmdgit $(commonflags) -ofsat -release -O -inline $(FLAGS) $(common) $(main) 
+	${DC} $(commonflags) -ofsat -release -O -inline $(FLAGS) $(common) $(main) 
