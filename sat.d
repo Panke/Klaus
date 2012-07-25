@@ -16,6 +16,12 @@ import std.array;
 
 import sattest;
 
+
+/**
+ * Represents the sign of a literal.
+ *
+ * It's a own type for static type checking
+ */
 struct Sign
 {
     enum _Val : bool { Pos = true, Neg = false };
@@ -28,7 +34,7 @@ struct Sign
 
     this(bool sign) { sgn = sign; }
 
-    Sign opUnary(string op)() if(op == "~")
+    Sign opUnary(string op)() const if(op == "~")
     {
         return Sign(!sgn);
     }
@@ -47,30 +53,30 @@ unittest
 }
 
 
-// Variables are indexes into other datastructures
+
+/**
+ * Reference to a Variable.
+ * It's actually a index into internal datastructures
+ * that store the information about the corresponding variable
+ *
+ * Own type for type safety
+ */
 struct Var
 {
     size_t idx;
     alias idx this;
 }
 
-size_t index(Literal lit) pure nothrow
-out(result)
-{
-    assert((result - 2*lit.var) <= 1);
-}
-body
-{
-    return 2*lit.var + lit.sign;
-}
 
-// Literals store the index for the variable and the sign
+/**
+ * Literals store the reference for the variable and the sign
+ */
 struct Literal
 {
     Var var;
     Sign sign;
 
-    Literal opUnary(string op)() if(op == "~")
+    Literal opUnary(string op)() const if(op == "~")
     {
         return Literal(var, ~sign);
     }
@@ -91,11 +97,33 @@ unittest
     static assert(is(typeof(~lit) == Literal));
 }
 
+/**
+ * Just like variables information about literals is stored
+ * not with the literal but in extra datastructures and the
+ * literal itself is just an index into these.
+ *
+ * Unlike variables we can not rely on implicit conversion, so
+ * this functions maps literals to the actual index.
+ *
+ */
+size_t index(in Literal lit) pure nothrow
+out(result)
+{
+    assert((result - 2*lit.var) <= 1);
+}
+body
+{
+    return 2*lit.var + lit.sign;
+}
 
-// a clause is basically a set of literals
+
+/**
+ * a clause is basically a set of literals
+ */
 struct Clause
 {
     Literal[] literals;
+// can't use alias this because of compiler bug
 //     alias literals this;
     string toString() { return to!string(literals); }
 }
@@ -109,15 +137,15 @@ unittest
 
     assert(equal(clause.literals, input));
     assert(clause.literals is ((*clause).literals));
-//     assert(equal(clause, input));
     assert(!(clause.literals is input));
 }
 
 
 
-// A variable can be true, false or unassigned
-// Type for value of literal/variable under given
-// assignment
+/**
+ * A variable can be true, false or unassigned.
+ * Type for value of literal/variable under given assignment
+ */
 
 /**
     ~False = True
@@ -126,11 +154,14 @@ unittest
 */
 enum Value : byte { Undef = 0, False = -1, True = 1}
 
-Value neg(Value op) pure nothrow
+/**
+ * Cannot overload operators for enums :-(
+ * So we need this function.
+ */
+Value neg(in Value op) pure nothrow
 {
     return cast(Value)(op * -1);
 }
-
 
 unittest
 {
@@ -140,14 +171,22 @@ unittest
     assert(neg(Value.Undef) == Value.Undef);
 }
 
+/*
+ * Main class of the sat solver.
+ *
+ * It's basically a DPLL-Solver on it's way to a CDCL-Solver
+ * You can find the DPLL mainloop in the method *search*.
+ *
+ * The rest is explained where it is implemented
+ */
 
 class Solver
 {
 // TODO Report bug, that __returnLabel is
-    // undefined if invariant is used
+// undefined if invariant is used
 
+    /** current decision level */
     @property curDeLevel() { return decisions.length; }
-
 
     /**
         add a variable to the solver.
@@ -161,11 +200,9 @@ class Solver
     }
 
     /**
-        add a clause to the solver
-
-        we don't support unit clauses
+        adds a clause to the formula that's to be solved.
     */
-    void addClause(Literal[] literals)
+    void addClause(in Literal[] literals)
     in
     {
         assert(literals.length >= 0, "empty clause not allowed");
@@ -261,7 +298,7 @@ class Solver
     body
     {
         // perform chronological backtracking with propagation
-        // variables are picked in order (for now) and true is tried first
+        // variables are picked in order and true is tried first
         while(true)
         {
             auto propResult = unitPropagation();
@@ -281,21 +318,18 @@ class Solver
             else // no conflict
             {
                 // all variables assigned AND no conflict ==> solution found
-//                debug(search) writefln("trail:\n %s", trailToString());
                 if(trail.length == varCount)
                     return true;
 
                 // choose next variable to assign.
-                // if the top element is assumend to be true, assume it should
-                // be false
                 Literal assumption = chooseLit();
                 decide(assumption);
             }
         }
     }
 
-    /*
-     *do all desicions up to but not including toLevel
+    /**
+     * undo all desicions up to but not including toLevel
      */
     void backtrack(size_t toLevel)
     in
@@ -316,8 +350,21 @@ class Solver
         }
     }
 
+    /** return type of analyseConflict */
     alias Tuple!(size_t, "blevel", Literal[], "learned", Literal, "asserting") AConf;
-    AConf analyseConflict(Clause* clause)
+    /**
+     *  param clause: clause that conflicts
+     *
+     *  analyse the conflict and find a Unit Implication Point (UIP) and optain
+     *  the corresponding conflict clause. this clause determines the level
+     *  we have to backtrack to.
+     *
+     *  Returns:
+     *     * the backtrack level
+     *     * the optained conflict clause (that should be learned)
+     *     * the literal of the UIP
+     */
+    AConf analyseConflict(in Clause* clause)
     in
     {
         assert(clause !is null);
@@ -334,6 +381,7 @@ class Solver
         while(true)
         {
             // count number of literals from current d-level
+            // if the number is one we have reached a UIP.
             auto pred = (Literal a) => deLevels[a.var] == curDeLevel;
             auto numOfCurDeLevel = count!pred(lits);
             if(numOfCurDeLevel == 1)
@@ -341,7 +389,7 @@ class Solver
                 debug(analyse) writeln("UIP");
                 break;
             }
-
+            // get the next element to resolve
             auto curElem = trail[idx];
             idx--;
             if(!canFind(lits, curElem.lit) && !canFind(lits, ~curElem.lit))
@@ -350,30 +398,39 @@ class Solver
             Clause* reason = reasons[curElem.lit.var];
             if(reason is null)
             {
+                // decision variable reached. If this happend we should usually
+                // have had a UIP already
                 debug(analyse) writeln("reason null");
                 break;
             }
-            // decision variable reached. If this happend we should usually
-            // have had a UIP already ?
+
             debug(analyse) writefln("resolving using %s", curElem.lit);
             lits = resolve(reason.literals, lits, curElem.lit);
         }
-
-		debug(analyse) writefln("Learned Clause at dlevel %s is %s", curDeLevel, lits);
-		debug(analyse) writeln(map!(a => deLevels[a.var])(lits).array());
-		size_t blevel = 0;
-		Literal asserting;
-		foreach(lit; lits)
-		{
-			if(deLevels[lit.var] > blevel && deLevels[lit.var] != curDeLevel)
-				blevel = deLevels[lit.var];
-			if(deLevels[lit.var] == curDeLevel)
-				asserting = lit;
-		}
-		return AConf(blevel, lits, asserting);
+        // UIP found, now determine the backtrack level
+        debug(analyse) writefln("Learned Clause at dlevel %s is %s", curDeLevel, lits);
+        debug(analyse) writeln(map!(a => deLevels[a.var])(lits).array());
+        size_t blevel = 0;
+        Literal asserting;
+        foreach(lit; lits)
+        {
+                if(deLevels[lit.var] > blevel && deLevels[lit.var] != curDeLevel)
+                        blevel = deLevels[lit.var];
+                if(deLevels[lit.var] == curDeLevel)
+                        asserting = lit;
+        }
+        return AConf(blevel, lits, asserting);
     }
 
-    Literal[] resolve(Literal[] pos, Literal[] neg, Literal resolvent)
+    /**
+     *  resolve two clauses pos and neg using resolvent.
+     *
+     *  assumes that resolvent is in pos and ~resolvent is in neg.
+     *
+     *  makes heavy use of GC and array operations and really should be
+     *  optimized.
+     */
+    Literal[] resolve(in Literal[] pos, in Literal[] neg, in Literal resolvent)
     {
         bool[] seen = new bool[varCount * 2];
         seen[] = false;
@@ -400,6 +457,18 @@ class Solver
 
     }
 
+    /**
+     * Choose the literal for the next branch.
+     *
+     * Since no heuristics are implemented yet, this just
+     * chooses the first unassigned variable it can find
+     * and return the positive literal of it.
+     *
+     * Note: this does not compromise the solver, because it's
+     * conflict driven. If the implied assignment make the formula
+     * unsat a clause will be learned that forces the variable
+     * to be set to False
+     */
     Literal chooseLit()
     {
         for(int i = 0; i < varCount; ++i)
