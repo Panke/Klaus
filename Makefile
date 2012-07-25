@@ -1,5 +1,5 @@
 
-PROBAT = /home/tobias/projects/
+PROBAT ?= /home/tobias/projects/
 PROBATOBJ = $(PROBAT)probat/*.d
 jflags = -J.
 commonobj = sat.d sattest.d testinstances.d
